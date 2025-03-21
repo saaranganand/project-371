@@ -13,6 +13,7 @@ WIDTH = 1280
 
 SERVER_PORT = 55000
 SERVER_IP = '127.0.0.1'
+# SERVER_IP = socket.gethostbyname(socket.gethostname())
 
 # pygame setup
 pygame.init()
@@ -68,63 +69,92 @@ def get_game_session():
     global game_session, server_socket
     # TODO: This function should return an instance of the game session
 
-    try:
-
-        server_socket.connect((SERVER_IP, SERVER_PORT))
-
-    except ConnectionRefusedError:
-
-        print("Connection refused")
-
 
 def join_game():
-    global SERVER_IP, SERVER_PORT
     main_menu.disable()
     join_match_menu.enable()
     join_match_menu.mainloop(screen)
 
-    SERVER_IP = server_ip.get_value()
-    SERVER_PORT = server_port.get_value()
-
 
 def join_the_game():
-    global game_running
-    game_running = True
-    get_game_session()
-    join_match_menu.disable()
+    global game_running, SERVER_IP, SERVER_PORT, server_socket
+    server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+
+    SERVER_IP = server_ip.get_value()
+    SERVER_PORT = int(server_port.get_value())
+
+    if wait_and_connect():
+
+        game_running = True
+        join_match_menu.disable()
+
+
+def wait_for_server():
+
+    global SERVER_PORT, game_session
+    server_up = False
+
+    # Extract the port number from the server, if it fails after 5 attempts, time out
+
+    for i in range(5):
+
+        SERVER_PORT = game_session.get_port_num()
+
+        if SERVER_PORT is not None:
+            print(f"The port is {SERVER_PORT}")
+            server_up = True
+            break
+
+        else:
+
+            sleep(0.3)
+
+    return server_up
+
+
+def wait_and_connect():
+
+    global SERVER_PORT, SERVER_IP, server_socket
+    player_connected = False
+
+    # Connect to the server. If it fails after 5 attempts, time out
+
+    for i in range(5):
+
+        print(f"Attempt #{i}")
+
+        try:
+
+            if server_socket:
+
+                server_socket.connect((SERVER_IP, SERVER_PORT))
+                player_connected = True
+                break
+
+
+        except ConnectionRefusedError:
+            time.sleep(0.3)
+
+    return player_connected
 
 
 def start_the_game():
-    global game_running, game_session, server_socket
-
+    global game_running, game_session, server_socket, SERVER_PORT, SERVER_IP
     server_socket = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
 
-    game_session = server.Server(2, SERVER_IP, SERVER_PORT)
+    game_session = server.Server(2, SERVER_IP)
 
     # Run the server in a different thread
     threading.Thread(target=game_session.start_server, daemon=True).start()
 
-    player_connected = False
+    if wait_for_server() and wait_and_connect():
 
-    # Loop until the server becomes active and ready to accept players or timeout
-    for i in range(10):
-
-        try:
-
-            server_socket.connect((SERVER_IP, SERVER_PORT))
-            player_connected = True
-            break
-
-        except (ConnectionRefusedError, BrokenPipeError):
-            time.sleep(0.5)
-
-    if player_connected:
         game_running = True
         main_menu.disable()
-    else:
-        print("Failed to connect to server (timeout)")
-        game_session.stop_server()
 
+    else:
+        game_session.stop_server()
+        print("Could not connect to server")
 
 
 def pause_menu():
@@ -147,8 +177,8 @@ main_menu.add.button('Quit', pygame_menu.events.EXIT)
 
 #Match join menu
 join_match_menu = pygame_menu.Menu('Join Match', WIDTH, HEIGHT, )
-server_port = join_match_menu.add.text_input('Server IP :', '')
-server_ip = join_match_menu.add.text_input('Server Port :', '')
+server_ip = join_match_menu.add.text_input('Server IP :', '')
+server_port = join_match_menu.add.text_input('Server Port :', '')
 join_match_menu.add.button('Join Match', join_the_game)
 join_match_menu.add.button('Return to Main Menu', join_menu_to_main_menu)
 error_label = join_match_menu.add.label("")

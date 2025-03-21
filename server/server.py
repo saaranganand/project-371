@@ -3,7 +3,6 @@ import socket
 from _thread import *
 
 
-
 class Server:
     def __init__(self, num_players, host="0.0.0.0", port=0):
         self.host = host
@@ -93,7 +92,7 @@ class Server:
 
     def get_port_num(self):
         """returns dynamicly assigned port number after bind"""
-        if self.server_socket:
+        if self.server_socket is not None:
             return self.server_socket.getsockname()[1]
         return None
 
